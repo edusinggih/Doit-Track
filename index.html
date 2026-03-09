@@ -174,9 +174,9 @@ Mulai
                     </button>
                     
                     <!-- Data Management Dropdown -->
-                    <button class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition">
-                            <i class></i><a href="dashboard.html">Buka Dashboard</a>
-                        </button>
+                    <a href="dashboard.html" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition flex items-center">
+<i class="fas fa-chart-line mr-2"></i> Dashboard
+</a>
 					
 					<div class="relative group">
 					
@@ -474,26 +474,7 @@ Mulai
                             placeholder="Tambahkan catatan..."></textarea>
                     </div>
 
-<!-- Camera Box -->
-<div id="cameraBox" class="hidden fixed bottom-4 right-4 bg-white p-4 rounded-xl shadow-xl z-50">
 
-<video id="camera" autoplay class="w-64 rounded-lg"></video>
-
-<div class="flex gap-2 mt-3">
-
-<button onclick="takePhoto()" class="bg-green-600 text-white px-3 py-2 rounded">
-Ambil Foto
-</button>
-
-<button onclick="closeCamera()" class="bg-red-600 text-white px-3 py-2 rounded">
-Tutup
-</button>
-
-</div>
-
-<canvas id="canvas" class="hidden"></canvas>
-
-</div>
 
 
                     <!-- Photo Upload -->
@@ -607,11 +588,33 @@ class="bg-blue-500 text-white px-4 py-2 rounded-lg">
         </table>
     </div>
 
+<!-- Camera Box -->
+<div id="cameraBox" class="hidden fixed bottom-4 right-4 bg-white p-4 rounded-xl shadow-xl z-50">
+
+<video id="camera" autoplay class="w-64 rounded-lg"></video>
+
+<div class="flex gap-2 mt-3">
+
+<button onclick="takePhoto()" class="bg-green-600 text-white px-3 py-2 rounded">
+Ambil Foto
+</button>
+
+<button onclick="closeCamera()" class="bg-red-600 text-white px-3 py-2 rounded">
+Tutup
+</button>
+
+</div>
+
+<canvas id="canvas" class="hidden"></canvas>
+
+</div>
+
     <script>
         // ==================== DATA MANAGEMENT ====================
         let transactions = [];
-        let budget = 5000000;
-        let deferredPrompt = null;
+		let budget = 5000000;
+		let deferredPrompt = null;
+		let chartInstance = null;
 
         const categories = {
             income: [
@@ -1263,11 +1266,13 @@ alert("Masukkan nama dulu")
 return
 }
 
-localStorage.setItem("moneytrack_user",name)
+localStorage.setItem("moneytrack_user", name)
 
 document.getElementById("userDisplay").innerText = name
-
 document.getElementById("welcomeScreen").style.display="none"
+
+loadData()
+updateUI()
 
 }
 
@@ -1284,9 +1289,15 @@ document.getElementById("welcomeScreen").style.display="none"
 
 }
     </script>
-	<script src="app.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+	<!-- Camera Box -->
+
+
+<script src="app.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
 <script src="ocr.js"></script>
+
 <footer class="mt-10 py-6 text-center text-sm text-gray-500 border-t">
 
 <p class="mb-1">
