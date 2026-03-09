@@ -174,9 +174,10 @@ Mulai
                     </button>
                     
                     <!-- Data Management Dropdown -->
-                    <a href="dashboard.html" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition flex items-center">
-<i class="fas fa-chart-line mr-2"></i> Dashboard
-</a>
+                    <button onclick="resetApp()" 
+class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg">
+<i class="fas fa-trash"></i> Reset
+</button>
 					
 					<div class="relative group">
 					
@@ -1286,6 +1287,15 @@ document.getElementById("userDisplay").innerText = name
 document.getElementById("welcomeScreen").style.display="none"
 
 }
+
+}
+function resetApp(){
+
+if(!confirm("Reset semua data aplikasi?")) return
+
+localStorage.clear()
+
+location.reload()
 
 }
     </script>
