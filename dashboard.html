@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>MoneyTrack Dashboard</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body class="bg-gray-100">
+
+<div class="max-w-6xl mx-auto p-6">
+
+<h1 class="text-3xl font-bold mb-6">
+Dashboard Analisis Keuangan
+</h1>
+
+<a href="index.html" class="text-blue-600 underline">
+⬅ Kembali ke MoneyTrack
+</a>
+
+<!-- summary -->
+
+<div class="grid grid-cols-3 gap-4 mt-6">
+
+<div class="bg-white p-6 rounded shadow">
+<h2 class="text-gray-500">Total Income</h2>
+<p id="income" class="text-green-600 text-2xl font-bold">0</p>
+</div>
+
+<div class="bg-white p-6 rounded shadow">
+<h2 class="text-gray-500">Total Expense</h2>
+<p id="expense" class="text-red-600 text-2xl font-bold">0</p>
+</div>
+
+<div class="bg-white p-6 rounded shadow">
+<h2 class="text-gray-500">Balance</h2>
+<p id="balance" class="text-blue-600 text-2xl font-bold">0</p>
+</div>
+
+</div>
+
+<!-- chart -->
+
+<div class="bg-white mt-8 p-6 rounded shadow">
+
+<h2 class="text-xl font-semibold mb-4">
+Grafik Pengeluaran
+</h2>
+
+<canvas id="expenseChart"></canvas>
+
+</div>
+
+</div>
+
+<script>
+
+const transactions = JSON.parse(
+localStorage.getItem("moneytrack_transactions") || "[]"
+)
+
+let income = 0
+let expense = 0
+
+transactions.forEach(t => {
+
+if(t.type === "income")
+income += t.amount
+
+if(t.type === "expense")
+expense += t.amount
+
+})
+
+document.getElementById("income").innerText =
+"Rp " + income.toLocaleString("id-ID")
+
+document.getElementById("expense").innerText =
+"Rp " + expense.toLocaleString("id-ID")
+
+document.getElementById("balance").innerText =
+"Rp " + (income - expense).toLocaleString("id-ID")
+
+// chart data
+
+const categoryData = {}
+
+transactions.forEach(t => {
+
+if(t.type === "expense"){
+
+if(!categoryData[t.category])
+categoryData[t.category] = 0
+
+categoryData[t.category] += t.amount
+
+}
+
+})
+
+const ctx = document.getElementById("expenseChart")
+
+new Chart(ctx, {
+
+type: "pie",
+
+data: {
+
+labels: Object.keys(categoryData),
+
+datasets: [{
+
+data: Object.values(categoryData)
+
+}]
+
+}
+
+})
+
+</script>
+
+</body>
+</html>
