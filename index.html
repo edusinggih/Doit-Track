@@ -174,9 +174,19 @@ Mulai
                     </button>
                     
                     <!-- Data Management Dropdown -->
-                    <a href="dashboard.html" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition flex items-center">
-<i class="fas fa-chart-line mr-2"></i> Dashboard
+                    <div class="flex gap-2">
+
+<a href="dashboard.html" 
+class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition">
+<i class="fas fa-chart-line"></i> Dashboard
 </a>
+
+<button onclick="resetApp()" 
+class="bg-red-500 hover:bg-red-600 px-3 py-2 rounded-lg transition text-white">
+<i class="fas fa-trash"></i> Reset
+</button>
+
+</div>
 					
 					<div class="relative group">
 					
@@ -1312,3 +1322,4 @@ Powered by <span class="font-semibold text-gray-700">Allohumusta'an</span>
 
 </body>
 </html>
+
