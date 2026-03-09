@@ -618,673 +618,16 @@ Tutup
 <canvas id="canvas" class="hidden"></canvas>
 
 </div>
+<script>
 
-    <script>
-        // ==================== DATA MANAGEMENT ====================
-        let transactions = [];
-		let budget = 5000000;
-		let deferredPrompt = null;
-		let chartInstance = null;
+// ==================== DATA MANAGEMENT ====================
 
-        const categories = {
-            income: [
-                { id: 'salary', name: 'Gaji', icon: 'fa-money-bill-wave', color: 'bg-green-100 text-green-600' },
-                { id: 'investment', name: 'Investasi', icon: 'fa-chart-line', color: 'bg-blue-100 text-blue-600' },
-                { id: 'business', name: 'Bisnis', icon: 'fa-briefcase', color: 'bg-purple-100 text-purple-600' },
-                { id: 'gift', name: 'Hadiah', icon: 'fa-gift', color: 'bg-pink-100 text-pink-600' },
-                { id: 'other_income', name: 'Lainnya', icon: 'fa-plus-circle', color: 'bg-gray-100 text-gray-600' }
-            ],
-            expense: [
-                { id: 'food', name: 'Makanan', icon: 'fa-utensils', color: 'bg-orange-100 text-orange-600' },
-                { id: 'transport', name: 'Transportasi', icon: 'fa-car', color: 'bg-blue-100 text-blue-600' },
-                { id: 'shopping', name: 'Belanja', icon: 'fa-shopping-bag', color: 'bg-pink-100 text-pink-600' },
-                { id: 'entertainment', name: 'Hiburan', icon: 'fa-film', color: 'bg-purple-100 text-purple-600' },
-                { id: 'health', name: 'Kesehatan', icon: 'fa-heartbeat', color: 'bg-red-100 text-red-600' },
-                { id: 'education', name: 'Pendidikan', icon: 'fa-graduation-cap', color: 'bg-indigo-100 text-indigo-600' },
-                { id: 'bills', name: 'Tagihan', icon: 'fa-file-invoice', color: 'bg-yellow-100 text-yellow-600' },
-                { id: 'other_expense', name: 'Lainnya', icon: 'fa-minus-circle', color: 'bg-gray-100 text-gray-600' }
-            ]
-        };
+let transactions = []
+let budget = 5000000
+let deferredPrompt = null
+let chartInstance = null
 
-        // ==================== INITIALIZATION ====================
-        document.addEventListener('DOMContentLoaded', function() {
-
-			loadUser()
-            loadData();
-            updateUI();
-            initChart();
-            setupPWA();
-            
-            // Auto-save reminder every 5 minutes
-            setInterval(() => {
-                if (transactions.length > 0) {
-                    showToast('💡 Jangan lupa export data untuk backup!', 'info');
-                }
-            }, 300000);
-        });
-
-        // ==================== STORAGE FUNCTIONS ====================
-        function loadData() {
-            try {
-                const savedTransactions = localStorage.getItem('moneytrack_transactions');
-                const savedBudget = localStorage.getItem('moneytrack_budget');
-                
-                if (savedTransactions) {
-                    transactions = JSON.parse(savedTransactions);
-                }
-                
-                if (savedBudget) {
-                    budget = parseFloat(savedBudget);
-                }
-            } catch (e) {
-                console.error('Error loading data:', e);
-                showToast('Gagal memuat data!', 'error');
-            }
-        }
-
-        function saveToStorage() {
-            try {
-                localStorage.setItem('moneytrack_transactions', JSON.stringify(transactions));
-                localStorage.setItem('moneytrack_budget', budget.toString());
-                return true;
-            } catch (e) {
-                if (e.name === 'QuotaExceededError') {
-                    showToast('Penyimpanan penuh! Export data lalu hapus foto lama.', 'error');
-                } else {
-                    showToast('Gagal menyimpan data!', 'error');
-                }
-                return false;
-            }
-        }
-
-        // ==================== EXPORT/IMPORT ====================
-        function exportToJSON() {
-            const data = {
-                app: 'MoneyTrack',
-                version: '1.0',
-                exportedAt: new Date().toISOString(),
-                transactions: transactions,
-                budget: budget,
-                stats: {
-                    totalTransactions: transactions.length,
-                    totalIncome: transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0),
-                    totalExpense: transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
-                }
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `moneytrack_backup_${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showToast('Data berhasil diexport! Simpan file ini dengan aman.');
-        }
-
-        function importFromJSON(input) {
-            const file = input.files[0];
-            if (!file) return;
-            
-            if (!confirm('⚠️ PERINGATAN: Import akan MENIMPA semua data saat ini. Lanjutkan?')) {
-                input.value = '';
-                return;
-            }
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    
-                    if (!data.transactions || !Array.isArray(data.transactions)) {
-                        throw new Error('Format file tidak valid!');
-                    }
-                    
-                    transactions = data.transactions;
-                    if (data.budget) budget = data.budget;
-                    
-                    if (saveToStorage()) {
-                        updateUI();
-                        showToast(`Berhasil import ${transactions.length} transaksi!`);
-                    }
-                } catch (error) {
-                    showToast('Gagal import: ' + error.message, 'error');
-                }
-            };
-            reader.readAsText(file);
-            input.value = '';
-        }
-
-        function exportToCSV() {
-            let csv = 'Tanggal,Tipe,Kategori,Deskripsi,Jumlah\n';
-            
-            transactions.forEach(t => {
-                const cat = getCategoryInfo(t.type, t.category);
-                csv += `${t.date},${t.type},${cat.name},"${t.description || ''}",${t.amount}\n`;
-            });
-            
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `moneytrack_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            showToast('File Excel/CSV berhasil diunduh!');
-        }
-
-        function clearAllData() {
-            if (!confirm('⚠️ Yakin ingin menghapus SEMUA data? Tindakan ini tidak bisa dibatalkan!')) return;
-            if (!confirm('Data akan hilang permanen. Sudah diexport?')) return;
-            
-            transactions = [];
-            budget = 5000000;
-            saveToStorage();
-            updateUI();
-            showToast('Semua data telah dihapus.');
-        }
-
-        // ==================== UI FUNCTIONS ====================
-        function updateUI() {
-            updateSummary();
-            renderTransactions();
-            updateChart();
-            updateBudgetUI();
-        }
-
-        function updateSummary() {
-            const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-            const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-            const balance = income - expense;
-            
-            document.getElementById('totalIncome').textContent = formatRupiah(income);
-            document.getElementById('totalExpense').textContent = formatRupiah(expense);
-            document.getElementById('totalBalance').textContent = formatRupiah(balance);
-            document.getElementById('incomeCount').textContent = transactions.filter(t => t.type === 'income').length + ' transaksi';
-            document.getElementById('expenseCount').textContent = transactions.filter(t => t.type === 'expense').length + ' transaksi';
-        }
-
-        function updateBudgetUI() {
-            const currentMonthExpense = transactions
-                .filter(t => t.type === 'expense' && isThisMonth(t.date))
-                .reduce((sum, t) => sum + t.amount, 0);
-            
-            const remaining = budget - currentMonthExpense;
-            const percentage = Math.min((currentMonthExpense / budget) * 100, 100);
-            
-            document.getElementById('monthlyBudget').textContent = formatRupiah(remaining);
-            document.getElementById('budgetProgress').style.width = percentage + '%';
-            
-            if (percentage > 90) {
-                document.getElementById('budgetProgress').classList.remove('bg-purple-600');
-                document.getElementById('budgetProgress').classList.add('bg-red-600');
-            } else {
-                document.getElementById('budgetProgress').classList.add('bg-purple-600');
-                document.getElementById('budgetProgress').classList.remove('bg-red-600');
-            }
-        }
-
-        function isThisMonth(dateString) {
-            const date = new Date(dateString);
-            const now = new Date();
-            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-        }
-
-        // ==================== MODAL FUNCTIONS ====================
-        function openModal(type) {
-            document.getElementById('transactionModal').classList.remove('hidden');
-            document.getElementById('transactionType').value = type;
-            document.getElementById('modalTitle').textContent = type === 'income' ? 'Tambah Pemasukan' : 'Tambah Pengeluaran';
-            
-            const categorySelect = document.getElementById('category');
-            categorySelect.innerHTML = '<option value="">Pilih Kategori</option>';
-            categories[type].forEach(cat => {
-                categorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
-            });
-            
-            document.getElementById('transactionForm').reset();
-            document.getElementById('transactionId').value = '';
-            document.getElementById('date').valueAsDate = new Date();
-            document.getElementById('photoPreview').classList.add('hidden');
-            document.getElementById('photoPreviewContainer').classList.remove('hidden');
-        }
-
-        function closeModal() {
-            document.getElementById('transactionModal').classList.add('hidden');
-        }
-
-        function openBudgetModal() {
-            document.getElementById('budgetModal').classList.remove('hidden');
-            document.getElementById('budgetAmount').value = budget;
-        }
-
-        function closeBudgetModal() {
-            document.getElementById('budgetModal').classList.add('hidden');
-        }
-
-        // ==================== TRANSACTION FUNCTIONS ====================
-        function saveTransaction(e) {
-            e.preventDefault();
-            
-            const id = document.getElementById('transactionId').value;
-            const type = document.getElementById('transactionType').value;
-            const amount = parseFloat(document.getElementById('amount').value);
-            const category = document.getElementById('category').value;
-            const date = document.getElementById('date').value;
-            const description = document.getElementById('description').value;
-            const photoPreview = document.getElementById('photoPreview');
-            const photo = !photoPreview.classList.contains('hidden') ? photoPreview.src : null;
-            
-            const transaction = {
-                id: id || Date.now().toString(),
-                type,
-                amount,
-                category,
-                date,
-                description,
-                photo,
-                createdAt: id ? transactions.find(t => t.id === id)?.createdAt || new Date().toISOString() : new Date().toISOString()
-            };
-            
-            if (id) {
-                const index = transactions.findIndex(t => t.id === id);
-                transactions[index] = transaction;
-                showToast('Transaksi berhasil diupdate!');
-            } else {
-                transactions.push(transaction);
-                showToast('Transaksi berhasil ditambahkan!');
-            }
-            
-            if (saveToStorage()) {
-                closeModal();
-                updateUI();
-            }
-        }
-
-        function deleteTransaction(id) {
-            if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
-                transactions = transactions.filter(t => t.id !== id);
-                if (saveToStorage()) {
-                    showToast('Transaksi berhasil dihapus!');
-                    updateUI();
-                }
-            }
-        }
-
-        function editTransaction(id) {
-            const t = transactions.find(tr => tr.id === id);
-            if (t) {
-                openModal(t.type);
-                document.getElementById('transactionId').value = t.id;
-                document.getElementById('amount').value = t.amount;
-                document.getElementById('category').value = t.category;
-                document.getElementById('date').value = t.date;
-                document.getElementById('description').value = t.description;
-                
-                if (t.photo) {
-                    document.getElementById('photoPreview').src = t.photo;
-                    document.getElementById('photoPreview').classList.remove('hidden');
-                    document.getElementById('photoPreviewContainer').classList.add('hidden');
-                }
-            }
-        }
-
-        function saveBudget() {
-            budget = parseFloat(document.getElementById('budgetAmount').value) || 0;
-            if (saveToStorage()) {
-                closeBudgetModal();
-                updateUI();
-                showToast('Budget berhasil diupdate!');
-            }
-        }
-
-        // ==================== RENDERING ====================
-        function renderTransactions() {
-            const list = document.getElementById('transactionList');
-            const emptyState = document.getElementById('emptyState');
-            const filtered = getFilteredTransactions();
-            
-            if (filtered.length === 0) {
-                list.innerHTML = '';
-                emptyState.classList.remove('hidden');
-                return;
-            }
-            
-            emptyState.classList.add('hidden');
-            list.innerHTML = filtered.sort((a, b) => new Date(b.date) - new Date(a.date)).map(t => {
-                const cat = getCategoryInfo(t.type, t.category);
-                return `
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            ${formatDate(t.date)}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="category-icon ${cat.color} mr-3">
-                                    <i class="fas ${cat.icon}"></i>
-                                </div>
-                                <span class="text-sm font-medium text-gray-800">${cat.name}</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                            ${t.description || '-'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            ${t.photo ? `<img src="${t.photo}" class="photo-preview cursor-pointer" onclick="showFullImage('${t.photo}')">` : '-'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right">
-                            <span class="text-sm font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">
-                                ${t.type === 'income' ? '+' : '-'} ${formatRupiah(t.amount)}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center">
-                            <button onclick="editTransaction('${t.id}')" class="text-blue-600 hover:text-blue-800 mr-3 transition">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deleteTransaction('${t.id}')" class="text-red-600 hover:text-red-800 transition">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        function getFilteredTransactions() {
-            const search = document.getElementById('searchInput').value.toLowerCase();
-            const type = document.getElementById('filterType').value;
-            const category = document.getElementById('filterCategory').value;
-            const date = document.getElementById('filterDate').value;
-            
-            return transactions.filter(t => {
-                const matchSearch = !search || 
-                    (t.description && t.description.toLowerCase().includes(search)) ||
-                    formatRupiah(t.amount).includes(search);
-                const matchType = type === 'all' || t.type === type;
-                const matchCategory = category === 'all' || t.category === category;
-                const matchDate = !date || t.date === date;
-                
-                return matchSearch && matchType && matchCategory && matchDate;
-            });
-        }
-
-        function filterTransactions() {
-            renderTransactions();
-        }
-
-        // ==================== CHART ====================
-        function initChart() {
-            const ctx = document.getElementById('financeChart').getContext('2d');
-            chartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: [],
-                    datasets: []
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return formatRupiah(value);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateChart() {
-            const period = document.getElementById('chartPeriod').value;
-            const data = getChartData(period);
-            
-            chartInstance.data = data;
-            chartInstance.update();
-        }
-
-        function getChartData(period) {
-            const now = new Date();
-            let labels = [];
-            let incomeData = [];
-            let expenseData = [];
-            
-            if (period === 'week') {
-                for (let i = 6; i >= 0; i--) {
-                    const d = new Date(now);
-                    d.setDate(d.getDate() - i);
-                    labels.push(d.toLocaleDateString('id-ID', { weekday: 'short' }));
-                    incomeData.push(getTotalByDate(d, 'income'));
-                    expenseData.push(getTotalByDate(d, 'expense'));
-                }
-            } else if (period === 'month') {
-                const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-                for (let i = 1; i <= daysInMonth; i += 3) {
-                    labels.push(i);
-                    incomeData.push(getTotalByDay(i, 'income'));
-                    expenseData.push(getTotalByDay(i, 'expense'));
-                }
-            } else {
-                for (let i = 0; i < 12; i++) {
-                    labels.push(new Date(now.getFullYear(), i, 1).toLocaleDateString('id-ID', { month: 'short' }));
-                    incomeData.push(getTotalByMonth(i, 'income'));
-                    expenseData.push(getTotalByMonth(i, 'expense'));
-                }
-            }
-            
-            return {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Pemasukan',
-                        data: incomeData,
-                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                        borderColor: 'rgb(34, 197, 94)',
-                        borderWidth: 2,
-                        borderRadius: 6
-                    },
-                    {
-                        label: 'Pengeluaran',
-                        data: expenseData,
-                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderWidth: 2,
-                        borderRadius: 6
-                    }
-                ]
-            };
-        }
-
-        function getTotalByDate(date, type) {
-            const dateStr = date.toISOString().split('T')[0];
-            return transactions
-                .filter(t => t.date === dateStr && t.type === type)
-                .reduce((sum, t) => sum + t.amount, 0);
-        }
-
-        function getTotalByDay(day, type) {
-            const now = new Date();
-            return transactions
-                .filter(t => {
-                    const d = new Date(t.date);
-                    return d.getDate() === day && 
-                           d.getMonth() === now.getMonth() && 
-                           d.getFullYear() === now.getFullYear() && 
-                           t.type === type;
-                })
-                .reduce((sum, t) => sum + t.amount, 0);
-        }
-
-        function getTotalByMonth(month, type) {
-            const now = new Date();
-            return transactions
-                .filter(t => {
-                    const d = new Date(t.date);
-                    return d.getMonth() === month && 
-                           d.getFullYear() === now.getFullYear() && 
-                           t.type === type;
-                })
-                .reduce((sum, t) => sum + t.amount, 0);
-        }
-
-        // ==================== PWA FUNCTIONS ====================
-        function setupPWA() {
-            // Register Service Worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('data:text/javascript;base64,' + btoa(`
-                    self.addEventListener('install', e => self.skipWaiting());
-                    self.addEventListener('activate', e => e.waitUntil(clients.claim()));
-                    self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => new Response('Offline'))));
-                `)).catch(() => console.log('SW registration skipped'));
-            }
-
-            // Handle Install Prompt
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                document.getElementById('installPWA').classList.add('show');
-            });
-
-            // Check if installed
-            if (window.matchMedia('(display-mode: standalone)').matches) {
-                document.getElementById('installPWA').style.display = 'none';
-            }
-        }
-
-        async function installApp() {
-            if (!deferredPrompt) return;
-            
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            
-            if (outcome === 'accepted') {
-                showToast('Aplikasi berhasil diinstall!');
-                document.getElementById('installPWA').classList.remove('show');
-            }
-            deferredPrompt = null;
-        }
-
-        // ==================== UTILITIES ====================
-        function formatRupiah(amount) {
-            return 'Rp ' + (amount || 0).toLocaleString('id-ID');
-        }
-
-        function formatDate(dateStr) {
-            const options = { day: 'numeric', month: 'short', year: 'numeric' };
-            return new Date(dateStr).toLocaleDateString('id-ID', options);
-        }
-
-        function getCategoryInfo(type, categoryId) {
-            const cat = categories[type].find(c => c.id === categoryId);
-            return cat || { name: categoryId, icon: 'fa-question', color: 'bg-gray-100 text-gray-600' };
-        }
-
-        function previewPhoto(event) {
-            const file = event.target.files[0];
-            if (file) {
-                if (file.size > 2 * 1024 * 1024) {
-                    showToast('Ukuran file maksimal 2MB', 'error');
-                    return;
-                }
-                
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    // Compress image
-                    const img = new Image();
-                    img.onload = function() {
-                        const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 800;
-                        const scale = Math.min(MAX_WIDTH / img.width, 1);
-                        canvas.width = img.width * scale;
-                        canvas.height = img.height * scale;
-                        
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        
-                        const compressed = canvas.toDataURL('image/jpeg', 0.7);
-                        document.getElementById('photoPreview').src = compressed;
-                        document.getElementById('photoPreview').classList.remove('hidden');
-                        document.getElementById('photoPreviewContainer').classList.add('hidden');
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function showFullImage(src) {
-            document.getElementById('fullImage').src = src;
-            document.getElementById('imageModal').classList.remove('hidden');
-        }
-
-        function closeImageModal() {
-            document.getElementById('imageModal').classList.add('hidden');
-        }
-
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            const icon = document.getElementById('toastIcon');
-            const msg = document.getElementById('toastMessage');
-            
-            msg.textContent = message;
-            
-            if (type === 'error') {
-                icon.className = 'fas fa-exclamation-circle mr-3 text-red-400';
-            } else if (type === 'info') {
-                icon.className = 'fas fa-info-circle mr-3 text-blue-400';
-            } else {
-                icon.className = 'fas fa-check-circle mr-3 text-green-400';
-            }
-            
-            toast.classList.remove('translate-y-20', 'opacity-0');
-            
-            setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-            }, 3000);
-        }
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal();
-                closeBudgetModal();
-                closeImageModal();
-            }
-        });
-		
-		
-		// ==================== USER NAME ====================
-
-function startApp(){
-
-const name = document.getElementById("userName").value.trim()
-
-if(!name){
-alert("Masukkan nama dulu")
-return
-}
-
-localStorage.setItem("moneytrack_user", name)
-
-document.getElementById("userDisplay").innerText = name
-document.getElementById("welcomeScreen").style.display="none"
-
-loadData()
-updateUI()
-
-}
+// ==================== USER ====================
 
 function loadUser(){
 
@@ -1292,32 +635,360 @@ const name = localStorage.getItem("moneytrack_user")
 
 if(name){
 
-document.getElementById("userDisplay").innerText = name
-document.getElementById("welcomeScreen").style.display="none"
+const userDisplay = document.getElementById("userDisplay")
+const welcomeScreen = document.getElementById("welcomeScreen")
+
+if(userDisplay) userDisplay.innerText = name
+if(welcomeScreen) welcomeScreen.style.display="none"
 
 }
 
 }
-		function resetApp(){
 
-const confirmReset = confirm(
-"Reset aplikasi?\n\nSemua transaksi akan dihapus!"
-)
+// ==================== CATEGORY ====================
 
-if(!confirmReset) return
+const categories = {
 
-localStorage.removeItem("moneytrack_transactions")
-localStorage.removeItem("moneytrack_user")
-localStorage.removeItem("moneytrack_budget")
+income:[
+{ id:'salary',name:'Gaji',icon:'fa-money-bill-wave',color:'bg-green-100 text-green-600'},
+{ id:'investment',name:'Investasi',icon:'fa-chart-line',color:'bg-blue-100 text-blue-600'},
+{ id:'business',name:'Bisnis',icon:'fa-briefcase',color:'bg-purple-100 text-purple-600'},
+{ id:'gift',name:'Hadiah',icon:'fa-gift',color:'bg-pink-100 text-pink-600'},
+{ id:'other_income',name:'Lainnya',icon:'fa-plus-circle',color:'bg-gray-100 text-gray-600'}
+],
 
-transactions = []
+expense:[
+{ id:'food',name:'Makanan',icon:'fa-utensils',color:'bg-orange-100 text-orange-600'},
+{ id:'transport',name:'Transportasi',icon:'fa-car',color:'bg-blue-100 text-blue-600'},
+{ id:'shopping',name:'Belanja',icon:'fa-shopping-bag',color:'bg-pink-100 text-pink-600'},
+{ id:'entertainment',name:'Hiburan',icon:'fa-film',color:'bg-purple-100 text-purple-600'},
+{ id:'health',name:'Kesehatan',icon:'fa-heartbeat',color:'bg-red-100 text-red-600'},
+{ id:'education',name:'Pendidikan',icon:'fa-graduation-cap',color:'bg-indigo-100 text-indigo-600'},
+{ id:'bills',name:'Tagihan',icon:'fa-file-invoice',color:'bg-yellow-100 text-yellow-600'},
+{ id:'other_expense',name:'Lainnya',icon:'fa-minus-circle',color:'bg-gray-100 text-gray-600'}
+]
 
+}
+
+// ==================== INIT ====================
+
+document.addEventListener("DOMContentLoaded",function(){
+
+loadUser()
+loadData()
 updateUI()
+initChart()
+setupPWA()
+
+setInterval(()=>{
+
+if(transactions.length>0){
+showToast("💡 Jangan lupa export data untuk backup!","info")
+}
+
+},300000)
+
+})
+
+// ==================== STORAGE ====================
+
+function loadData(){
+
+try{
+
+const savedTransactions=localStorage.getItem("moneytrack_transactions")
+const savedBudget=localStorage.getItem("moneytrack_budget")
+
+if(savedTransactions){
+transactions=JSON.parse(savedTransactions)
+}
+
+if(savedBudget){
+budget=parseFloat(savedBudget)
+}
+
+}catch(e){
+
+console.error(e)
+
+}
+
+}
+
+function saveToStorage(){
+
+try{
+
+localStorage.setItem("moneytrack_transactions",JSON.stringify(transactions))
+localStorage.setItem("moneytrack_budget",budget)
+
+return true
+
+}catch(e){
+
+showToast("Gagal menyimpan data","error")
+return false
+
+}
+
+}
+
+// ==================== RESET ====================
+
+function resetApp(){
+
+if(!confirm("Reset semua data?")) return
+
+localStorage.clear()
+
+transactions=[]
+budget=5000000
 
 location.reload()
 
 }
-    </script>
+
+// ==================== SUMMARY ====================
+
+function updateUI(){
+
+updateSummary()
+renderTransactions()
+updateChart()
+updateBudgetUI()
+
+}
+
+function updateSummary(){
+
+const income=transactions
+.filter(t=>t.type==="income")
+.reduce((sum,t)=>sum+t.amount,0)
+
+const expense=transactions
+.filter(t=>t.type==="expense")
+.reduce((sum,t)=>sum+t.amount,0)
+
+const balance=income-expense
+
+const totalIncome=document.getElementById("totalIncome")
+const totalExpense=document.getElementById("totalExpense")
+const totalBalance=document.getElementById("totalBalance")
+
+if(totalIncome) totalIncome.textContent=formatRupiah(income)
+if(totalExpense) totalExpense.textContent=formatRupiah(expense)
+if(totalBalance) totalBalance.textContent=formatRupiah(balance)
+
+}
+
+// ==================== BUDGET ====================
+
+function updateBudgetUI(){
+
+const currentMonthExpense=transactions
+.filter(t=>t.type==="expense" && isThisMonth(t.date))
+.reduce((sum,t)=>sum+t.amount,0)
+
+const remaining=budget-currentMonthExpense
+const percentage=Math.min((currentMonthExpense/budget)*100,100)
+
+const el=document.getElementById("monthlyBudget")
+if(el) el.textContent=formatRupiah(remaining)
+
+const progress=document.getElementById("budgetProgress")
+
+if(progress){
+
+progress.style.width=percentage+"%"
+
+if(percentage>90){
+
+progress.classList.remove("bg-purple-600")
+progress.classList.add("bg-red-600")
+
+}else{
+
+progress.classList.add("bg-purple-600")
+progress.classList.remove("bg-red-600")
+
+}
+
+}
+
+}
+
+function isThisMonth(dateString){
+
+const date=new Date(dateString)
+const now=new Date()
+
+return date.getMonth()===now.getMonth() && date.getFullYear()===now.getFullYear()
+
+}
+
+// ==================== TRANSACTION ====================
+
+function saveTransaction(e){
+
+e.preventDefault()
+
+const id=document.getElementById("transactionId").value
+const type=document.getElementById("transactionType").value
+const amount=parseFloat(document.getElementById("amount").value)
+const category=document.getElementById("category").value
+const date=document.getElementById("date").value
+const description=document.getElementById("description").value
+
+const transaction={
+
+id:id || Date.now().toString(),
+type,
+amount,
+category,
+date,
+description,
+createdAt:new Date().toISOString()
+
+}
+
+if(id){
+
+const index=transactions.findIndex(t=>t.id===id)
+transactions[index]=transaction
+
+}else{
+
+transactions.push(transaction)
+
+}
+
+if(saveToStorage()){
+
+updateUI()
+
+}
+
+}
+
+// ==================== RENDER ====================
+
+function renderTransactions(){
+
+const list=document.getElementById("transactionList")
+if(!list) return
+
+list.innerHTML=""
+
+transactions
+.sort((a,b)=>new Date(b.date)-new Date(a.date))
+.forEach(t=>{
+
+const tr=document.createElement("tr")
+
+tr.innerHTML=`
+
+<td>${formatDate(t.date)}</td>
+<td>${t.category}</td>
+<td>${t.description || "-"}</td>
+<td>${formatRupiah(t.amount)}</td>
+
+`
+
+list.appendChild(tr)
+
+})
+
+}
+
+// ==================== CHART ====================
+
+function initChart(){
+
+const canvas=document.getElementById("financeChart")
+if(!canvas) return
+
+const ctx=canvas.getContext("2d")
+
+chartInstance=new Chart(ctx,{
+type:"bar",
+data:{labels:[],datasets:[]},
+options:{responsive:true,maintainAspectRatio:false}
+})
+
+}
+
+function updateChart(){
+
+if(!chartInstance) return
+
+const income=transactions
+.filter(t=>t.type==="income")
+.reduce((s,t)=>s+t.amount,0)
+
+const expense=transactions
+.filter(t=>t.type==="expense")
+.reduce((s,t)=>s+t.amount,0)
+
+chartInstance.data={
+
+labels:["Income","Expense"],
+
+datasets:[{
+
+data:[income,expense]
+
+}]
+
+}
+
+chartInstance.update()
+
+}
+
+// ==================== PWA ====================
+
+function setupPWA(){
+
+window.addEventListener("beforeinstallprompt",(e)=>{
+
+e.preventDefault()
+deferredPrompt=e
+
+})
+
+}
+
+// ==================== UTIL ====================
+
+function formatRupiah(amount){
+
+return "Rp "+(amount||0).toLocaleString("id-ID")
+
+}
+
+function formatDate(dateStr){
+
+return new Date(dateStr).toLocaleDateString("id-ID")
+
+}
+
+function showToast(msg){
+
+const toast=document.getElementById("toast")
+const text=document.getElementById("toastMessage")
+
+if(!toast || !text) return
+
+text.textContent=msg
+toast.classList.remove("hidden")
+
+setTimeout(()=>{
+toast.classList.add("hidden")
+},3000)
+
+}
+
+</script>
 	<!-- Camera Box -->
 
 
@@ -1341,6 +1012,7 @@ Powered by <span class="font-semibold text-gray-700">Allohumusta'an</span>
 
 </body>
 </html>
+
 
 
 
